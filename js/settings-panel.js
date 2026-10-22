@@ -63,19 +63,28 @@
           <section class="set-section sync-section" id="syncSection">
             <h3>Synchronisierung</h3>
             <div class="sync-view" data-sync-view="off">
-              <p class="sync-intro">Melde dich an, um deine Notizen auf allen Geräten zu haben. Du bekommst einen Code per E-Mail – ohne Passwort.</p>
-              <form class="sync-form" data-form="email" novalidate>
-                <input class="text-input" type="email" name="email" placeholder="deine@email.de" autocomplete="email" autocapitalize="off" spellcheck="false" required>
-                <button class="new-btn" type="submit">Code senden</button>
-              </form>
-              <form class="sync-form" data-form="code" novalidate hidden>
-                <input class="text-input code-input" type="text" name="code" placeholder="Code aus der E-Mail" inputmode="numeric" autocomplete="one-time-code" maxlength="10">
+              <p class="sync-intro">Melde dich an, um deine Notizen auf allen Geräten zu haben.</p>
+              <div class="opt-group wide auth-mode" role="radiogroup" aria-label="Anmelden oder Konto erstellen">
+                <button class="opt" type="button" role="radio" data-auth-mode="signin">Anmelden</button>
+                <button class="opt" type="button" role="radio" data-auth-mode="signup">Konto erstellen</button>
+              </div>
+              <form class="auth-form" data-form="auth" novalidate>
+                <input class="text-input" type="email" name="email" placeholder="E-Mail" autocomplete="email" autocapitalize="off" spellcheck="false">
+                <input class="text-input" type="password" name="password" placeholder="Passwort" autocomplete="current-password">
                 <button class="new-btn" type="submit">Anmelden</button>
               </form>
               <div class="sync-msg-row">
                 <p class="sync-msg" role="status"></p>
-                <button class="link-btn" type="button" data-sync-back hidden>Andere E-Mail</button>
+                <button class="link-btn" type="button" data-forgot>Passwort vergessen?</button>
               </div>
+            </div>
+            <div class="sync-view" data-sync-view="recovery" hidden>
+              <p class="sync-intro">Leg ein neues Passwort fest.</p>
+              <form class="auth-form" data-form="recovery" novalidate>
+                <input class="text-input" type="password" name="password" placeholder="Neues Passwort" autocomplete="new-password">
+                <button class="new-btn" type="submit">Speichern</button>
+              </form>
+              <div class="sync-msg-row"><p class="sync-msg" role="status"></p></div>
             </div>
             <div class="sync-view" data-sync-view="on" hidden>
               <div class="sync-account">
@@ -302,11 +311,9 @@
 
   const SYNC = window.Erledigungen.sync;
   const section = modal.querySelector('#syncSection');
-  const emailForm = section.querySelector('[data-form="email"]');
-  const codeForm = section.querySelector('[data-form="code"]');
-  const msg = section.querySelector('.sync-msg');
-  const backBtn = section.querySelector('[data-sync-back]');
-  let pendingEmail = '';
+  const authForm = section.querySelector('[data-form="auth"]');
+  const recoveryForm = section.querySelector('[data-form="recovery"]');
+  let authMode = 'signin';
   let busy = false;
 
   const STATUS_TEXT = {
@@ -319,16 +326,23 @@
   function friendlyError(err) {
     const m = String((err && err.message) || err || '');
     if (/rate limit|security purposes|only request this after/i.test(m)) return 'Zu viele Versuche – bitte in ein paar Minuten erneut.';
-    if (/expired|invalid/i.test(m) && /token|otp/i.test(m)) return 'Der Code ist falsch oder abgelaufen.';
+    if (/invalid login credentials/i.test(m)) return 'E-Mail oder Passwort ist falsch.';
+    if (/email not confirmed/i.test(m)) return 'Bitte zuerst den Bestätigungslink in der E-Mail anklicken.';
+    if (/already registered|already exists/i.test(m)) return 'Für diese E-Mail gibt es schon ein Konto – bitte anmelden.';
+    if (/password/i.test(m) && /(at least|characters|weak|short)/i.test(m)) return 'Das Passwort ist zu kurz oder zu einfach (mind. 6 Zeichen).';
+    if (/same.*password|different from the old/i.test(m)) return 'Das neue Passwort muss sich vom alten unterscheiden.';
     if (/email.*invalid|invalid.*email/i.test(m)) return 'Diese E-Mail-Adresse ist ungültig.';
+    if (/not authorized|address not authorized/i.test(m)) return 'An diese Adresse kann Supabase ohne eigenen Mailserver nicht senden – nimm die E-Mail deines Supabase-Kontos.';
     if (/upsert_notes|relation .*notes|schema cache/i.test(m)) return 'Die Datenbank ist noch nicht eingerichtet (supabase/schema.sql ausführen).';
     if (/fetch|network|load failed/i.test(m)) return 'Keine Verbindung zum Server.';
     return m || 'Unbekannter Fehler.';
   }
 
   function setMsg(text, kind) {
-    msg.textContent = text || '';
-    msg.dataset.kind = kind || '';
+    section.querySelectorAll('.sync-msg').forEach((msg) => {
+      msg.textContent = text || '';
+      msg.dataset.kind = kind || '';
+    });
   }
 
   function relTime(ts) {
@@ -341,7 +355,7 @@
 
   function renderSync() {
     const st = SYNC ? SYNC.getState() : { status: 'unavailable' };
-    const view = st.status === 'unavailable' ? 'unavailable' : st.user ? 'on' : 'off';
+    const view = st.status === 'unavailable' ? 'unavailable' : st.recovery ? 'recovery' : st.user ? 'on' : 'off';
     section.querySelectorAll('[data-sync-view]').forEach((el) => {
       el.hidden = el.dataset.syncView !== view;
     });
@@ -353,9 +367,15 @@
       if (st.status === 'error' && st.error) text = friendlyError(st.error);
       section.querySelector('.sync-status').textContent = text;
     } else if (view === 'off') {
-      emailForm.hidden = !!pendingEmail;
-      codeForm.hidden = !pendingEmail;
-      backBtn.hidden = !pendingEmail;
+      section.querySelectorAll('[data-auth-mode]').forEach((btn) => {
+        const on = btn.dataset.authMode === authMode;
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-checked', String(on));
+      });
+      authForm.password.autocomplete = authMode === 'signup' ? 'new-password' : 'current-password';
+      authForm.password.placeholder = authMode === 'signup' ? 'Passwort (mind. 6 Zeichen)' : 'Passwort';
+      authForm.querySelector('button[type="submit"]').textContent = authMode === 'signup' ? 'Konto erstellen' : 'Anmelden';
+      section.querySelector('[data-forgot]').hidden = authMode === 'signup';
     }
   }
 
@@ -366,57 +386,81 @@
     });
   }
 
-  emailForm.addEventListener('submit', async (e) => {
+  const validEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+  section.querySelectorAll('[data-auth-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      authMode = btn.dataset.authMode;
+      setMsg('');
+      renderSync();
+    });
+  });
+
+  authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (busy || !SYNC || !SYNC.enabled) return;
-    const email = emailForm.email.value.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setMsg('Bitte eine gültige E-Mail-Adresse eingeben.', 'error');
-      return;
-    }
-    setBusy(emailForm, true);
-    setMsg('Code wird gesendet …');
+    const email = authForm.email.value.trim();
+    const password = authForm.password.value;
+    if (!validEmail(email)) return setMsg('Bitte eine gültige E-Mail-Adresse eingeben.', 'error');
+    if (password.length < 6) return setMsg('Das Passwort braucht mindestens 6 Zeichen.', 'error');
+    setBusy(authForm, true);
+    setMsg(authMode === 'signup' ? 'Konto wird erstellt …' : 'Anmelden …');
     try {
-      await SYNC.sendCode(email);
-      pendingEmail = email;
-      setMsg(`Code an ${email} gesendet. Schau in dein Postfach (auch im Spam).`, 'ok');
+      if (authMode === 'signup') {
+        const loggedIn = await SYNC.signUp(email, password);
+        if (loggedIn) {
+          setMsg('');
+        } else {
+          authMode = 'signin';
+          setMsg(`Fast geschafft: Klick auf den Link in der E-Mail an ${email} und melde dich dann hier an.`, 'ok');
+        }
+      } else {
+        await SYNC.signIn(email, password);
+        setMsg('');
+      }
+      authForm.password.value = '';
       renderSync();
-      codeForm.code.value = '';
-      codeForm.code.focus();
     } catch (err) {
       setMsg(friendlyError(err), 'error');
     } finally {
-      setBusy(emailForm, false);
+      setBusy(authForm, false);
     }
   });
 
-  codeForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (busy || !pendingEmail) return;
-    const code = codeForm.code.value.replace(/\s+/g, '');
-    if (!/^\d{6,10}$/.test(code)) {
-      setMsg('Bitte den Code aus der E-Mail eingeben.', 'error');
-      return;
-    }
-    setBusy(codeForm, true);
-    setMsg('Anmelden …');
+  section.querySelector('[data-forgot]').addEventListener('click', async () => {
+    if (busy || !SYNC || !SYNC.enabled) return;
+    const email = authForm.email.value.trim();
+    if (!validEmail(email)) return setMsg('Gib oben deine E-Mail ein, dann schicke ich dir einen Link.', 'error');
+    busy = true;
     try {
-      await SYNC.verifyCode(pendingEmail, code);
-      pendingEmail = '';
+      await SYNC.resetPassword(email);
+      setMsg(`Link zum Zurücksetzen an ${email} gesendet.`, 'ok');
+    } catch (err) {
+      setMsg(friendlyError(err), 'error');
+    } finally {
+      busy = false;
+    }
+  });
+
+  recoveryForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    const password = recoveryForm.password.value;
+    if (password.length < 6) return setMsg('Das Passwort braucht mindestens 6 Zeichen.', 'error');
+    setBusy(recoveryForm, true);
+    try {
+      await SYNC.updatePassword(password);
+      recoveryForm.password.value = '';
       setMsg('');
       renderSync();
     } catch (err) {
       setMsg(friendlyError(err), 'error');
     } finally {
-      setBusy(codeForm, false);
+      setBusy(recoveryForm, false);
     }
   });
 
-  backBtn.addEventListener('click', () => {
-    pendingEmail = '';
-    setMsg('');
-    renderSync();
-  });
+  document.addEventListener('erledigungen:open-settings', open);
 
   section.querySelector('[data-sync-now]').addEventListener('click', () => SYNC && SYNC.syncNow());
   section.querySelector('[data-sign-out]').addEventListener('click', async () => {

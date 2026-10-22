@@ -16,7 +16,7 @@
   const cfg = global.ERLEDIGUNGEN_CONFIG;
   const listeners = new Set();
 
-  const state = { status: 'off', user: null, error: null, lastSyncedAt: null };
+  const state = { status: 'off', user: null, error: null, lastSyncedAt: null, recovery: false };
 
   function emit() {
     document.documentElement.dataset.sync = state.status;
@@ -314,6 +314,14 @@
   }
 
   client.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      // Über den Link "Passwort zurücksetzen" gekommen: neues Passwort abfragen
+      state.recovery = true;
+      setTimeout(() => {
+        emit();
+        document.dispatchEvent(new CustomEvent('erledigungen:open-settings'));
+      }, 0);
+    }
     const user = session && session.user ? session.user : null;
     const sameUser = user && state.user && user.id === state.user.id;
     if (sameUser) return; // z. B. Token-Erneuerung
@@ -343,16 +351,31 @@
   Object.assign(api, {
     enabled: true,
     syncNow,
-    async sendCode(email) {
-      const { error } = await client.auth.signInWithOtp({
+    async signIn(email, password) {
+      const { error } = await client.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    },
+    // Liefert true, wenn direkt angemeldet; false, wenn erst die E-Mail bestätigt werden muss.
+    async signUp(email, password) {
+      const { data, error } = await client.auth.signUp({
         email,
-        options: { shouldCreateUser: true, emailRedirectTo: location.origin + location.pathname },
+        password,
+        options: { emailRedirectTo: location.origin + location.pathname },
+      });
+      if (error) throw error;
+      return !!data.session;
+    },
+    async resetPassword(email) {
+      const { error } = await client.auth.resetPasswordForEmail(email, {
+        redirectTo: location.origin + location.pathname,
       });
       if (error) throw error;
     },
-    async verifyCode(email, token) {
-      const { error } = await client.auth.verifyOtp({ email, token, type: 'email' });
+    async updatePassword(password) {
+      const { error } = await client.auth.updateUser({ password });
       if (error) throw error;
+      state.recovery = false;
+      emit();
     },
     async signOut() {
       await client.auth.signOut({ scope: 'local' });

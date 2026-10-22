@@ -34,7 +34,7 @@ Dann am Handy `http://<IP-deines-Macs>:4173` öffnen und über „Zum Home-Bilds
 
 ## Sync zwischen Geräten (Supabase)
 
-Anmeldung in den Einstellungen per E-Mail-Code. Danach werden alle Notizen live zwischen allen angemeldeten Geräten abgeglichen. Offline wird weitergeschrieben und später übertragen; bei Konflikten gewinnt die neuere Änderung (in der App und auf dem Server nach derselben Regel). Löschungen werden als Tombstone (`deleted: true`) übertragen.
+Anmeldung in den Einstellungen mit E-Mail und Passwort. Danach werden alle Notizen live zwischen allen angemeldeten Geräten abgeglichen. Offline wird weitergeschrieben und später übertragen; bei Konflikten gewinnt die neuere Änderung (in der App und auf dem Server nach derselben Regel). Löschungen werden als Tombstone (`deleted: true`) übertragen.
 
 | Datei | Inhalt |
 |---|---|
@@ -45,8 +45,7 @@ Anmeldung in den Einstellungen per E-Mail-Code. Danach werden alle Notizen live 
 
 ### Einmalige Einrichtung in Supabase
 
-1. **SQL Editor** → Inhalt von `supabase/schema.sql` einfügen → *Run*.
-2. **Authentication → Email Templates**: in *Magic Link* **und** *Confirm signup* eine Zeile mit `{{ .Token }}` ergänzen, z. B. `Dein Code: {{ .Token }}`. (Der Code ist wichtig fürs iPhone: ein Link würde in Safari statt in der Home-Bildschirm-App aufgehen.)
-3. **Authentication → URL Configuration**: *Site URL* auf die GitHub-Pages-Adresse setzen und `http://localhost:4173` als *Redirect URL* ergänzen.
+1. **SQL Editor** → Inhalt von `supabase/schema.sql` einfügen → *Run* (erledigt).
+2. **Authentication → URL Configuration**: *Site URL* auf die GitHub-Pages-Adresse setzen, damit Bestätigungs- und Passwort-Links dort landen.
 
-Hinweis: Der kostenlose Supabase-Mailversand erlaubt nur wenige E-Mails pro Stunde.
+Hinweis: Ohne eigenen Mailserver verschickt Supabase nur wenige E-Mails pro Stunde und nur an Adressen von Mitgliedern des Supabase-Teams.
