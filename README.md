@@ -4,6 +4,9 @@ Schlanke Notiz-App mit drei Status-Ordnern – **Nicht angefangen** (rot), **In 
 
 ## Starten
 
+**Online:** https://woifel0.github.io/erledigungen/ (am Handy in Safari öffnen → Teilen → „Zum Home-Bildschirm“)
+
+Lokal:
 `index.html` doppelklicken – fertig. Für die Handy-Ansicht im WLAN einen kleinen Server starten:
 
 ```bash
@@ -46,6 +49,6 @@ Anmeldung in den Einstellungen mit E-Mail und Passwort. Danach werden alle Notiz
 ### Einmalige Einrichtung in Supabase
 
 1. **SQL Editor** → Inhalt von `supabase/schema.sql` einfügen → *Run* (erledigt).
-2. **Authentication → URL Configuration**: *Site URL* auf die GitHub-Pages-Adresse setzen, damit Bestätigungs- und Passwort-Links dort landen.
+2. **Authentication → URL Configuration**: *Site URL* auf `https://woifel0.github.io/erledigungen/` setzen, damit Bestätigungs- und Passwort-Links dort landen.
 
 Hinweis: Ohne eigenen Mailserver verschickt Supabase nur wenige E-Mails pro Stunde und nur an Adressen von Mitgliedern des Supabase-Teams.
