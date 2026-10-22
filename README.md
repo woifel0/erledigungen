@@ -32,26 +32,21 @@ Dann am Handy `http://<IP-deines-Macs>:4173` öffnen und über „Zum Home-Bilds
 | `js/settings-panel.js` | Einstellungsfenster |
 | `js/app.js` | Oberfläche, Drag & Drop, Spaltenbreiten |
 
-## Live-Sync (Handy ⇄ Mac)
+## Sync zwischen Geräten (Supabase)
 
-Aktuell liegen die Daten lokal im Browser; mehrere offene Fenster gleichen sich bereits live ab. Die Datenschicht ist für echten Geräte-Sync vorbereitet:
+Anmeldung in den Einstellungen per E-Mail-Code. Danach werden alle Notizen live zwischen allen angemeldeten Geräten abgeglichen. Offline wird weitergeschrieben und später übertragen; bei Konflikten gewinnt die neuere Änderung (in der App und auf dem Server nach derselben Regel). Löschungen werden als Tombstone (`deleted: true`) übertragen.
 
-- jede Notiz hat `id`, `updatedAt`, `updatedBy` (Gerät) und `openedAt`
-- Löschungen bleiben 30 Tage als Tombstone (`deleted: true`) erhalten, damit sie sich auf andere Geräte übertragen
-- Konflikte: die neuere Änderung gewinnt („last write wins“)
+| Datei | Inhalt |
+|---|---|
+| `js/config.js` | Supabase-URL und öffentlicher anon-Key |
+| `js/sync.js` | Warteschlange, Hoch-/Nachladen, Realtime, Anmeldung |
+| `supabase/schema.sql` | Tabelle, Zugriffsregeln (nur eigene Notizen), Konflikt-Funktion |
+| `sw.js` | Offline-Start der App |
 
-Ein Backend (z. B. Supabase, Firebase oder ein eigener Server) wird über einen Adapter angeschlossen:
+### Einmalige Einrichtung in Supabase
 
-```js
-Erledigungen.store.useSync({
-  connect({ apply, snapshot }) {
-    // 1. snapshot() einmal hochladen, Server-Stand per apply(notes) einspielen
-    // 2. Echtzeit-Kanal abonnieren und eingehende Notizen an apply(...) geben
-  },
-  push(notes) {
-    // geänderte Notizen (inkl. Tombstones) per upsert an den Server senden
-  },
-});
-```
+1. **SQL Editor** → Inhalt von `supabase/schema.sql` einfügen → *Run*.
+2. **Authentication → Email Templates**: in *Magic Link* **und** *Confirm signup* eine Zeile mit `{{ .Token }}` ergänzen, z. B. `Dein Code: {{ .Token }}`. (Der Code ist wichtig fürs iPhone: ein Link würde in Safari statt in der Home-Bildschirm-App aufgehen.)
+3. **Authentication → URL Configuration**: *Site URL* auf die GitHub-Pages-Adresse setzen und `http://localhost:4173` als *Redirect URL* ergänzen.
 
-Als Tabelle reicht eine Zeile pro Notiz mit genau den Feldern oben.
+Hinweis: Der kostenlose Supabase-Mailversand erlaubt nur wenige E-Mails pro Stunde.
